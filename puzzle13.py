@@ -1,6 +1,3 @@
-from fractions import Fraction
-
-
 testing = False
 
 
@@ -20,21 +17,13 @@ class Machine:
         self.b = parse_button(line2, '+')
         self.prize = parse_button(line3, '=')
         self.prize = tuple(prize_offset + x for x in self.prize)
-        self.colinear = (Fraction(*self.b) == Fraction(*self.a))
 
     def win(self):
-        if self.colinear:
-            return self.win_colinear()
         (xa, ya), (xb, yb), (xp, yp) = self.a, self.b, self.prize
-        b = Fraction(xa * yp - xp * ya, xa * yb - xb * ya)
-        if b.denominator == 1:
-            b = b.numerator
-            a = (xp - xb * b) // xa
+        b = (xa * yp - xp * ya) // (xa * yb - xb * ya)
+        a = (xp - xb * b) // xa
+        if a * xa + b * xb == xp and a * ya + b * yb == yp:
             return 3 * a + b
-        return None
-
-    def win_colinear(self):
-        print('hey')
         return None
 
 
