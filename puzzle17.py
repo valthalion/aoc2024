@@ -94,10 +94,6 @@ def pseudocode():
 
 
 def find_a_value(code, idx=None, a=0):
-    # target xor 5 -> t'
-    # (a & 7) xor 3 -> b'
-    # t' xor (a >> b') == b' ==> (a >> b') = b' xor t'
-
     if idx == -1:
         return a
 
@@ -105,8 +101,6 @@ def find_a_value(code, idx=None, a=0):
     if idx is None:
         idx = len(code) - 1
         start = 1  # first triplet cannot be 0 to ensure no termination before
-
-    # print(idx, a)
 
     a <<= 3
     for trail_a in range(start, 8):
@@ -116,7 +110,6 @@ def find_a_value(code, idx=None, a=0):
         c = (new_a >> b)
         b ^= c
         b ^= 5
-        print(f'** {idx}, {trail_a}, {new_a}, {b}, {b & 7}, {code[idx]}')
         if (b & 7) != code[idx]:
             continue
         final_a = find_a_value(code, idx=idx - 1, a=new_a)
