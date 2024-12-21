@@ -19,6 +19,7 @@ def cached(f):
         return cache[args]
     return inner
 
+
 @cached
 def translate(pos, target):
     move = target - pos
@@ -31,12 +32,12 @@ def translate(pos, target):
     # In either case, chage tactic if it would pass through the forbidden gap
     if move.real <= 0:
         if pos.imag == 0 and pos.real + horiz == -2:
-            return f'{v * abs(vert)}{h * abs(horiz)}'
-        return f'{h * abs(horiz)}{v * abs(vert)}'
+            return f'{v * abs(vert)}{h * abs(horiz)}A'
+        return f'{h * abs(horiz)}{v * abs(vert)}A'
     else:
         if pos.real == -2 and pos.imag + vert == 0:
-            f'{h * abs(horiz)}{v * abs(vert)}'
-        return f'{v * abs(vert)}{h * abs(horiz)}'
+            return f'{h * abs(horiz)}{v * abs(vert)}A'
+        return f'{v * abs(vert)}{h * abs(horiz)}A'
 
 
 def read_data():
@@ -45,36 +46,36 @@ def read_data():
             yield line.strip()
 
 
-def keyboard_sequence(code):
-    pos = buttons['A']
-    seq = []
-    for c in code:
-        target = buttons[c]
-        seq.extend(translate(pos, target))
-        seq.append('A')
-        pos = target
-    return ''.join(seq)
+@cached
+def calculate_len(button, prev, num_keyboards):
+    # print('calc_len:', button, prev, num_keyboards)
+    if num_keyboards == 0:
+        return 1  # direct push
+    return process(translate(buttons[prev], buttons[button]), num_keyboards=num_keyboards - 1)
 
 
-def process(code, num_keyboards=3):
-    seq = code
-    for _ in range(num_keyboards):
-        seq = keyboard_sequence(seq)
-    print(len(seq))
-    return seq
+def process(seq, start='A', num_keyboards=3):
+    # print('process:', seq, start, num_keyboards)
+    if num_keyboards == 0:
+        return len(seq)
+    seq_len, pos = 0, 'A'
+    for button in seq:
+        seq_len += calculate_len(button, pos, num_keyboards)
+        pos = button
+    return seq_len
 
 
-def complexity(code, seq):
-    return len(seq) * int(code[:-1])
+def complexity(code, seq_len):
+    return seq_len * int(code[:-1])
 
 
 def part_1():
     codes = list(read_data())
-    seqs = (process(code) for code in codes)
-    return sum(complexity(code, seq) for code, seq in zip(codes, seqs))
+    seq_lens = (process(code) for code in codes)
+    return sum(complexity(code, seq_len) for code, seq_len in zip(codes, seq_lens))
 
 
 def part_2():
     codes = list(read_data())
-    seqs = (process(code, num_keyboards=26) for code in codes)
-    return sum(complexity(code, seq) for code, seq in zip(codes, seqs))
+    seq_lens = (process(code, num_keyboards=26) for code in codes)
+    return sum(complexity(code, seq_len) for code, seq_len in zip(codes, seq_lens))
