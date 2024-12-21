@@ -3,7 +3,6 @@ testing = False
 
 # Define positions for each keyboard centered aroud the 'A' button, so that the same system can
 # be used for both; this also makes -2 the forbidden position in both keyboards.
-
 buttons = {
     'A': 0,
     '0': -1, '1': -2 + 1j, '2': -1 + 1j, '3': 1j, '4': -2 + 2j, '5': -1 + 2j, '6': 2j, '7': -2 + 3j,
@@ -48,14 +47,12 @@ def read_data():
 
 @cached
 def calculate_len(button, prev, num_keyboards):
-    # print('calc_len:', button, prev, num_keyboards)
     if num_keyboards == 0:
         return 1  # direct push
     return process(translate(buttons[prev], buttons[button]), num_keyboards=num_keyboards - 1)
 
 
 def process(seq, start='A', num_keyboards=3):
-    # print('process:', seq, start, num_keyboards)
     if num_keyboards == 0:
         return len(seq)
     seq_len, pos = 0, 'A'
