@@ -41,10 +41,7 @@ def part_1():
 def part_2():
     graph, start, end = read_data()
     shortest_paths = nx.all_shortest_paths(graph, start, end, weight='weight')
-    common = None
-    for bp in shortest_paths:
-        if common is None:
-            common = {node for node, _ in bp}
-            continue
-        common |= {node for node, _ in bp}
+    common = set()
+    for best_path in shortest_paths:
+        common |= {node for node, _ in best_path}
     return len(common)

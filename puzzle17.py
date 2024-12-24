@@ -132,6 +132,7 @@ def part_2():
     if a_value is None:
         return
 
+    # Comment the three lines above to run this and get the pseudocode of the program
     registers['a'] = a_value
     computer = Computer(registers)
     output = list(computer.run(code))
