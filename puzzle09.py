@@ -47,7 +47,6 @@ def defrag(files, gaps):
 
 
 def defrag2(files, gaps):
-    remove = None
     for file in reversed(files):
         for gap in gaps:
             if gap['pos'] > file['pos']:
