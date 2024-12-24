@@ -136,58 +136,170 @@ This procedure ensures that the pages are added in order consistent with the rul
 Depending on the structure of the rules and the first page selected there may remain additional pages when the stack empties. In that case, just take any of the remaining pages and put it in the stack. Repeat until all pages are gone.
 
 
+
 ## Day 6
+
+This is one of the 'simulate a path' problems. Rather than handling clunky tuples or building a vector class, we will use complex numbers to track both position and heading. Complex numbers are actually 2-dimensional vectors, with the added benefit that multiplying the heading by `1j` effectively makes a left turn (and by `-1j` makes a right turn). It's easy to read the data, using row and column indices to represent the position of obstacles and the robot.
+
+We will use the negative of the row, and then add the total number of rows so that the imaginary parts grow upwards in the map. Otherwise, the turning does not behave as expected.
+
+Finally, we build a function to chech whether a position is within bounds, performing an enclosure of the values for the number of rows and columns; this is easier to pass aorund, and avoids the need to rewrite the checks in different places.
 
 ### Part 1
 
+To keep track of the positions in the path we use a set. The code has been updated for Part 2, so it doesn't show it finally; the `defaultdict(set)` works as well, as we keep the non-duplicated positions as keys (the values keep track of the headings while in the position, which is relevant for Part 2).
 
+Most of the `trace_path` function was added after the fact. At each step we just need to see what would happen taking one step in the direction of heading; if there's an obstacle, turn, otherwise actually take the step, then repeat until the robot is out of bounds. It would look like this:
+
+```python3
+def trace_path(obstacles, in_bounds, start, heading=1j):
+    path = defaultdict(set)
+    pos = start
+
+    while True:
+        new_pos = pos + heading  # tentative new step
+        if not in_bounds(new_pos):  # next step takes us out of bounds, it's the end of the path
+            break
+        if new_pos in obstacles:  # there is an obstacle ahead
+            heading *= -1j  # turn right
+        else:  # next step is feasible
+            pos = new_pos  # take the step
+        path[pos].add(heading)  # in either case, update the path with the new pos and heading
+
+    return path
+```
+
+To get the answer we just look at the length of the path.
 
 ### Part 2
 
+Next, we need to find where to set up a new obstacle so that the robot is thrown into a loop. The brute-force approach is to check every possible position and trace the path to see if it geenrates the loop. A little more smartly, we can check only positions along the original path, as other positions won't change the route. That's still a large number of checks, each with a potentially long path until the loop (or lack thereof) is discovered.
+
+We can take one more step checking recursively, dynamic programming-style, as we go along the original path. Everytime we would take a step ahead we ask a hypothetical *what if there were an obstacle just ahead and I had to turn?*. This hypothetical uses exactly the same path-following logic, so we can solve it with a recursive call; to provide both answers that we need (the path for the outer call, whether there is a loop for the inner call), we now return two values. Likewise, we need additional input arguments: the path so far (which we copy, we don't want to overwrite that), the new position for the obstacle if it's the what-if scenario (`new_loop`), and how many new obstacles can be added, which will be 1 or 0.
+
+The code is actually very similar to the simpler version of Part 1, with some reordering, and adding the recursive call for the hypothetical.
+
+There is a subtle bug that crept in (it's already fixed) and took some time to find: because we reuse the `pos` variable first to copy the path prefix and then to continue the path, the initial position is undefined if not reset to `start` explicitly. This would not happen with a normal dictionary as (in modern Python) they are ordered; but apparently `defaultdict` is not.
 
 
 
 ## Day 7
 
+Today's task is to find what operations, if any, can be inserted between numbers to reach a predefined result.
+
 ### Part 1
 
+We can add and multiply. Operations are applied from left to right, so no need to write out the equations and figure out precedence. It's like a reduce or fold operation, only we need to decide each operation. Wich means that a recursive search should be straightforward:
 
+1.  Base case: if there is only one number, that's the only possible result, so we just return whether it matches the target
+2.  Loop through the operators: take out the two first numbers, and put the result of applying the operation to them in their place; can we get to the target in this reduced problem?
+3.  As soon as one of the operators returns that it works, we can say that it's possible; if they all fail, it is not.
+
+There is one more little improvement we can make: all operators result in larger values than any of their arguments, so if the first number grows beyond the target we can prune that brach of the search immediately and save computation. This comes between steps 1. and 2.
 
 ### Part 2
 
+A third option appears now: a concatenation operator. This still behaves like addition and multiplication, in the sense that it is always increasing, so we can apply exactly the same logic, only with one more operator in the loop of operators, with a newly defined `concat` function as the third operator.
 
 
 
 ## Day 8
 
+Yet another case of elements positioned in a grid. This time we will use (row, column) tuples, as we will be accessing the components frequently, so the complex number option is less useful this time. Otherwise, it's the same sparse representation, using a dictionary keyed by the frequency, and with the position as the value.
+
+Don't forget to also return the number of rows and columns to be able to check bounds later.
+
 ### Part 1
 
+Finding the antinodes is easy: it's basically calculating the vector from one antenna to another: `d = a2 - a1`, and then the antinodes are at `a1 - d` and `a2 + d`. In the code:
 
+*   We do this separately for rows and columns, so `d` turns into its two components `rowdiff` and `coldiff`.
+*   For each frequency, we select the first antenna by looping over the antennas except the last one, and the second by iterating over those after the current one in the outer loop. This covers all pairs, as we are doing both directions of the antinodes.
+*   For each antinode that we determine, we add it to the set of antinodes, which takes care of potential overlaps.
+
+The length of the antinodes set is the number of unique antinode locations, and the answer that we look for.
 
 ### Part 2
 
+This is the same as Part 1, just repeating the addition (or substraction) of `d` until getting out of bounds.
+
+For clarity, we retain the same structure as before, but take the calculation of the antinodes corresponding to a pair of antennas out into a `line` function. This function just calculates the step, equivalent to `d` before, now called `slope`, and applies it iteratively in both directions until the grid runs out. It returns the set of antinodes, which is added (union-ed?) to the global set of antinodes.
 
 
 
 ## Day 9
 
+It's clear that representing the whole memory explicitly is not the way to go so we will define data structures for files and gaps:
+
+*   Each file is a dictionary with fields for `id`, `pos` (position), and `size`. We will keep them ordered in a list, to begin with.
+*   Gaps are similar to files, but there is no `id` field. We will use a deque to keep the gaps, as we will need to process them left-to-right (i.e. FIFO).
+
+Reading the data and translating it into these formats is not complex, it just requires some care to alternate between files and gaps, keeping track of the file ids, and skipping 0-sized gaps.
+
+The calculation of the file checksums is also straightforward, given the data structure:
+
+```python3
+sum(pos * file['id'] for pos in range(file['pos'], file['pos'] + file['size']))
+```
+
 ### Part 1
 
+The first compression strategy moves files from the back of the memory, inserting them into the gaps from left to right, and splitting as necessary to leave no gaps. So we just simulate this:
 
+1. We take a file from the back, popping it from the list
+2. We take the first gap from the gap queue
+3. We insert the whole file or as much of it as fits in the gap
+4. We retain the file or gap that is not exhausted, and take the next one of the other
+5. Repeat until we reach a gap that is beyond the file that we are moving: everything after the current file must already be moved, so only free space remains there.
+
+Keeping the list of files updated with the positions of the files that are moved is not trivial, and our data structure does not provide affordances for tracking fragments. However, neither of this is a problem.
+
+First, we do not need to keep the list ordered, as long as we correctly update the `pos` field of the files; the checksum will use that value, so the position in the list is irrelevant, except for extracting the files in order from the back. This means that we can just use an auxiliary list, and just join them together at the end.
+
+Second, we do not need to do anything with the files as a whole. If both the `id` and `pos` are correct, it does not matter whther its a whole file, a fragment, or which particular fragment. The checksum will still be correct.
 
 ### Part 2
 
+The second strategy tries to avoid fragmentation by moving whole files again starting from the back to the first gap that is large enough. This means that the gaps need to be updated as the files are moved, because the next file will start again from the beginning.
+
+The new procedure works similarly to the first one:
+
+1. We process files from the back towards the front
+2. For each file, we check the gaps in order until we reach a gap position beyond the file position
+3. For each gap, we check if the file size fits in the gap. If so, we update the position of the file, and the position and size of the gap (the file *eats* the beginning of the gap); this has the side effect of setting the position of the file ahead of the gap, so in the next iteration of the loop it will trigger the break and move on to process the next file.
+
+There are a couple of possible optimizations here, but they were not needed, so it made no sense to add the additional complexity:
+
+*   If a file fits into a gap exactly, the gap becomes size 0; this works out, but ideally this 0-sized gap should be removed.
+*   There is probably a smarter stop condition that does not necessarily run through all files, but the meagre potential gains do not justify thinking it through.
+
+As before, the position of the files in the file list is irrelevant, so we do not move them around, just update the `pos` field as needed. This also allows the loop to be a simple `for`.
 
 
 
 ## Day 10
 
+The relevant features in today's puzzle are the trails, not the heightmap itself. We will still build the heightmap as we read the data, but just as a buffer. We will build three artifacts:
+
+1. A heightmap, as a dictionary of (row, column) and height pairs, as we go through the input file.
+2. If the height is 0, we add the (row, column) location to the set of trailheads
+3. A graph of trails. This is a directed graph, as we only want ascending steps. To avoid multiple passes, we only consider for each position the positions to the left and above and check both directions (from the current node to the neighbour, or from the neighbour to the current node). It's easy to see that this looks at all possible pairs (and a few impossible ones above the first row and to the left of the first column). Also, as we are checking the height in the heightmap, just seeing if it's there works as well as checking bounds, and can be done on the go, as we build them.
+
 ### Part 1
 
+We need to follow all the possible trails and see how many positions of height 9 can be reached. The easy way is to enumarate all reachable nodes from each trailhead, and see if their height is 9 (this is what `score` does).
 
+The `visit` function is like finding the connected components of the graph, but we are only interested in the component of a specific trailhead at a time. We start with just the trailhead in a queue, and an empty set of visited nodes. Until we empty the queue, we take one node from it, yield it as a reachable node, mark it visited, and add its unvisited neighbours to the queue.
 
 ### Part 2
 
+The `rating` is more complex than the `score`. We need to check all unique paths, but those paths may not just partially overlap, but they may brach apart and later reunite (if they never reunited, there would be a single way to get to each peak, and `rating` would be the same as `score`).
+
+Luckily, this is easy to solve through recursion. And the recursion corresponds to each step of a trail, so there is no danger of the recursion depth going beyond 10.
+
+When we start at the trailhead, the rating is the sum of the ratings of each possible next step; each of those steps branches into one unique path (but it has to be followed to see if it reaches a peak). We can calculate the rating of each of the next steps in the same way, and with each recursion level we will be one level higher. There are two base cases: if at some point there are no possible steps before reaching the peak, then the rating is 0; if we reach a peak the rating is 1 (we reach it through one specific path).
+
+Since we are only interested in the rating, this is quite neat. If we needed the paths, they can be built through the recursion, adding a few lines of code and some *noise* to the solution.
 
 
 
