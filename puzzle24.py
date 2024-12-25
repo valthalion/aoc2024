@@ -61,9 +61,9 @@ def part_1():
 
 def part_2():
     connections, values = read_data()
-    # Uncomment the next line to generate a graph of the operations
+    # Uncomment the next line to generate a graphviz graph of the operations
     # flowchart(connections)
     
-    # From analyzing the graph, the following anomalies are seen in bits 7, 13, 18, and 27
+    # From analyzing the graph, the following anomalies are seen in bits 7, 13, 18, and 26
     anomalies = (('z07', 'bjm'), ('z13', 'hsw'), ('z18', 'skf'), ('nvr', 'wkr'))
     return ','.join(sorted(node for anomaly in anomalies for node in anomaly))
