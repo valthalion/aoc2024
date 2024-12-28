@@ -305,34 +305,121 @@ Since we are only interested in the rating, this is quite neat. If we needed the
 
 ## Day 11
 
+Not a lot to discuss on the data structures for this one. We will just process the numbers one by one, since we can easily observe that whta happens to each is independent from the others; which means that we don't even need to put them together into a list or something like that.
+
 ### Part 1
 
+This part can be directly simulated, the branching does not get out of hand either in terms of space or number of operations. This won't be the case for the second part, but at this steage we still don't know which way it will go (it could well just complicate the blinking rules).
 
+The simulation version is very similar to the final version: we just write the rules for one step and apply it recursively:
+
+```python3
+def blink(stone, times):
+    if times == 0:
+        return (stone,)
+
+    if stone == 0:
+        return blink(1, times - 1)
+
+    stone_str = str(stone)
+    stone_len = len(stone_str)
+    if stone_len % 2 == 0:
+        midpoint = stone_len // 2
+        stone1, stone2 = (int(stone_str[:midpoint]), int(stone_str[midpoint:]))
+        return (**blink(stone1, times - 1), **blink(stone2, times - 1))
+    return blink(stone * 2024, times - 1)
+```
+For the base case, when we have zero applications left (`times == 0`), just return the stone as a 1-tuple; return values need to be sequences because the stones can *multiply* in one step, so we will need to collect them.
+
+If we have more transformations to make, we do one step, and recurse with one less time to apply. We go in order through the rules:
+
+1.  If the stone is 0, change it to 1 and recurse.
+2.  If it has an even number of digits, we create two separate stones, one from each half, recurse for each of them, and group the results.
+3.  If nothing else applies, multiply by 2024 and recurse.
 
 ### Part 2
 
+With the deeper recursion we run into two problems: running time, and the size of the line of stones. The size part can be dealt with by just working with the length of the line, rather than the individual values. For the running time, we will use memoization: there will be repetition of values so we can just reuse previously calculated values.
+
+We rename our function to `blink_len` to reflect the new focus, and adjust the return values: If `times` is zero (the base case), just return one, the stone remains as is. For the other cases, the only non-trivial part is that the grouping of a splitting stone now becomes adding the lengths of each new stone, calculated through the recursion.
+
+For the memoization we just wrap the funciton with a decorator that caches the result of every call to the function, and uses the cache if available.
 
 
 
 ## Day 12
 
+Another 2-dimensional grid, another graph-based solution. In this case we are not following paths, but working with regions. We will connect nighbours in the same region: as we itereate through the rows and columns of the input, we create a node for each `(row, col)` pair, and edges between it and each of its neighbours that belong to the same region. We will use the same trick we used before of only looking at the neighbours that were visited before in the iteration, to avoid a double pass.
+
+As a helper to building the graph, we will have a map that indicates the region (the associated letter) for each node. We will return that, too, in case it's useful (spoiler alert: it's not).
+
+With the graph, we can easily separate the regions as the connected components in the graph.
+
 ### Part 1
 
+The area of a region is straightforward to calculate with our representation: count the number of nodes.
 
+The perimeter is also easy: Each node contributes one unit for each neighbour that is not in the same region, or in other words, 4 minus the number of neighbours. Sum over the nodes.
 
 ### Part 2
 
+The new parimeter calculation gets tricky. We will need to actually trace the perimeter, counting how many time we change side. We also need to account for the possible interior gaps, which are slightly different. We will treat them separately, although it should be possible to abstract the difference into a function, parametrizing to what side of the heading the *outside* is. We will discuss the outer bound in detail, and then gloss over the inner bounds, which follow the same rationale.
 
+We first filter out the edge nodes: those with fewer than 4 neighbours; we create a set of them to track when we are done tracing all the boundaries; we use (node, normal) pairs because some nodes, those in corners, will have more than one side to count, so we record also the *missing* neighbours; i.e. the normal points to the outside of the region. We also start a `sides` counter.
+
+We move to the leftmost node in the topmost edge. This is necessarily the outer edge, and easy to calculate: it's the minimum of the edge nodes (considering that tuple inequality is lexicographic and that our nodes are defined as `(row, col)` tuples). We start moving rightwards (we'll go clockwise), with our normal vector pointing up (outside). The loop body counts one side, and runs along it until the next turn. We repeat this until we get back to the start node, but are heading up: that's when we have closed the boundary.
+
+We can keep moving along an edge (and removing the node, heading pairs from the remaining set) as long as the next step in that direction is still within the region (that's a right turn), and the outside neighbour of the next step is not within the region (that's a left turn).
+
+If we reached a right turn, it's done in place: just adjust the heading and normal. If it's a left turn, we need to move one step ahead and one to the left (the direction of the normal), as well as changing the heading and normal. Note that this is different form [a jump to the left and then a step to the right](https://www.youtube.com/watch?v=YC1E8yVJIS4).
+
+For the inner gaps, the normal is to the right of the heading (we are still going clockwise), and the checks for right and left turns are exchanged (now turning right requires the extra steps, and left turns are done in-place). Also, when we close one region we will not end in the same position as we started (it would be a right turn).
+
+We keep counting the inner gaps by taking the minimum remaining node, which is the top-left node of one of the remaining gaps. When we run out of remaining nodes, we are done.
 
 
 ## Day 13
 
+This is a mathematical puzzle; once we notice that everything becomes extremely simple. Especially since none of the machines have collinear buttons (I checked), so asking for the minimum cost is a red herring: there is only one possible combination of the two buttons that will retrieve the prize. Let's define some nomenclature for a machine:
+
+*   Button `A` is pushed $a$ times, and each time it moves the claw machine by $(x_a, y_a)$.
+*   Button `A` is pushed $b$ times, and each time it moves the claw machine by $(x_b, y_b)$.
+*   The prize is located at $(x_p, y_p)$.
+
+We then have a double condition to meet to reach the prize:
+
+```math
+\begin{cases}
+  a x_a + b x_b &= x_p\\
+  a y_a + b y_b &= y_p.
+\end{cases}
+```
+
+If we multiply the first equation by $\frac{y_a}{x_a}$ and subtract it from the second, we get:
+
+```math
+\begin{align}
+  b (y_b - \frac{x_b}{x_a}y_a) &= y_p - \frac{x_p}{x_a} y_a \\
+  b (x_a y_b - x_a y_b) &= x_a y_p - x_p y_a\\
+  b &= \frac{x_a y_p - x_p y_a}{x_a y_b - x_a y_b}.
+\end{align}
+```
+
+We can then calculate $a$ directly from the first equation, using the value of $b$:
+
+```math
+a = \frac{x_p - b x_b}{x_a}.
+```
+
 ### Part 1
 
+We will start with a class for a Machine, that takes the buttons and prize position. This could be a function, but it helps with passing around all the data easily. Building the machines is easy, just a little parsing of the specification.
 
+In the `win` method, we just use the equations we derived above to calculate `a` and `b`, or rather their integer part; we're not interested in fractional pushes. We then check if using this numbers of pushes will actually get the prize, and return the cost if so. Otherwise we return `None`, meaning that it's not possible to win in that machine.
 
 ### Part 2
 
+It seems that we were expected to solve the first part through search and now try to find out the mathematical solution. Since we started with the math, we just need to add the `offset` option in the initialization of the `Machine` class, and we're done.
 
 
 
