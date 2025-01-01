@@ -425,67 +425,188 @@ It seems that we were expected to solve the first part through search and now tr
 
 ## Day 14
 
+It's easy to see that robots are (individually) fully predictable at any timestep $t$, from the initial position $p(0)$ and the speed $v$:
+
+```math
+p(t) = p(0) + vt.
+```
+
+This assumes a vector approach, and that we have a slightly redefined multiplication that applies modulo the width/height for the x/y components, respectively, to account for the wrapping (teleportation).
+
+We will use two simple classes to manage all of this, and make the rest of the code more intelligible: `Vector` and `Robot`. Building the `Robot`s from the input requires some parsing, but is straightforward.
+
 ### Part 1
 
+Since our definition of the `Robot`s already allows to foresee their position at the target time direclty, only calculating the quadrant is left to do. We will just add 1 if the position is to the right of the middle and 2 if it's below the middle; this is equivalent to using a 2-bit bitmask, and will return a value between 0 and 3. If the robot happens to be on one of the middle lines, we just return `None`, as it belongs into no quadrant.
 
+After that, it's only a matter of counting and multiplying the counts.
 
 ### Part 2
 
+We will go for the visual approach in this case. So our first step is to be able to `show` the situation at a given time step. We can start by showing a series of situations, e.g. 100 at a time (aesier to do by redirecting output to a file and using a text editor to scroll), and taking a quick look; mostly the patterns will be basically noise, but some level of structure emerges occasionally.
+
+After only a few of these we see a pattern: Every 101 steps, there is some accumulation of the robots towards the vertical centerline, and some horizontal stretches that seem to suggest lines. From here on, we can advance much faster, just generating those times with steps of 101. Only a few more batches until we see a clear depiction of a christmass tree. We take note of the timestep and that's our answer.
 
 
 
 ## Day 15
 
+We will keep track of the different types of objects in different ways, always sparse. First, we will use our classical complex representation of the coordinates; this time, as there are no rotations involved, we don't care that increasing the imaginary part goes down. The representation of the different elements:
+
+*   The robot is just its position, nothing else is really needed.
+*   Walls are a set of positions so we can easily check for collisions.
+*   The boxes will need to model some behaviour, so we will build a class to represent them. We will store them in a dictionary with the box's position as the key.
+
+When moving on to Part 2, and widening the boxes, these definitions need some tweaking: each horizontal step actually becomes two. This does not affect to the definition of the robot, since it is located on the first of the two spaces; and we can build the boxes in the same way as before, assuming that their location is given by their leftmost position. For the walls we just generate both positions to include in the set.
+
+Finally, calculating the *gps* coordinates of each box is trivial.
+
+When reading the description for Part 1, keep in mind that the initial code was much simpler, and it was generalized to wider boxes after the fact.
+
 ### Part 1
 
+Mostly standard fare: follow the sequence of moves, check if the new position is feasible; if so, take that step (and move boxes if appropriate), otherwise ignore it.
 
+Checking feasibility has three parts:
+
+1.  If the new step is a wall, it's not feasible.
+2.  If the new step is a box, then it's feasible if the box can move in that direction.
+3.  If it's neither, then it's feasible.
+
+The second option is the only one with any meat to it. The box can move following exactly the same rules as the robot, so it reduces to a recursive call in case the next move of the box goes into another box; sooner or later the next move of the box will either be a wall (no move possible), or a gap (and so move); in either case, the result propagates back through the chain of calls, up to the robot, and everyone moves or not according to this.
+
+At this stage, the boxes move directly when checking if they can move (if the result is positive), and the move has to be integrated into the dictionary keys as well so that the boxes can be found in the right place (we integrate this in the class itself to avoid potential issues with forgetting to update fro mthe outside). Moving just before returning from the recursive call ensures that every box has a clear spot for its move and that no box is written out of the dictionary (this is a nice touch, but since every box rewrites itself into the right position in the dictionary it would work out in any order; the recursive stack holds the set of boxes to update).
 
 ### Part 2
 
+Changing the width of the boxes has little effect on the creation of the different objects (as discussed above), and the horizontal movement (just need to check two steps ahead instead of one for walls or boxes, and it introduces a little asymmetry for the robot: boxes are one step away to the right, but two steps away to the left). Just for fun, we will mostly make this general for any width; this is already Part 2, so we don't expect any more extensions, but this way we can re-solve Part 1 with the same code.
+
+We have gone over the changes in horizontal movement already, but vertical movement is more complex. First, the robot now has to check the position right above/below it as before, but also the one to the left of that, because a box there extends into its path. In general, this extends to `width - 1` steps to the left (the one that is removed is the one right above/below the robot).
+
+Moving the boxes is the real doozy. We will build a `show` function just to be able to check that everything works as expected, and debug behaviour; also, we can create a few test scenarios to try to catch edge cases, and there are a few that can bite us.
+
+Since a box can now push two other boxes, and this can extend, a new situation appears: a box may be able to move, but not do so because another box in this *tree* is blocked. The simplest case is that the robot pushes a box, which in turn pushes two others, one free to move, one set against a wall: nothing moves.
+
+This changes one big thing about our previous approach: we acn no longer move as soon as we check for feasibility; feasible movement in one branch of the tree no longer ensures that everything will move. So we will separate checking, which only validates whether it's possible, and actually moving (assuming that the check has been made). Both still rely on recursively calling the next box(es), if any.
+
+All that's left is to make a few adjustments to ensure that we properly check which boxes are affected by a move with the new width. There are now multiple positions for a box to be affected: from a box shifted to the left so that its rightmost bit is above/below the current box's leftmost bit, to a box shifted to the right so that its leftmost bit is above/below the current box's rightmost bit. That's a `[-(width - 1), width)` range for the offset; note that it's closed to the left and open to the right (which neatly maps to the beheviour of Python's `range`).
+
+So that's it, right? Well, no. There is a subtle problem that is causing incorrect movements in some situations. If we go beyond the simplest tree of boxes pushing other boxes, and reach a third level (think one box, pushing two other, which in turn push another three, one of which is in contact with both the boxes in the previous levels). The recursive calls to check feasibility still work OK in this situation, but the calls to move actually update its position twice, so it moves further than it should.
+
+The solution is to only make the recursive call to move if the boxes are still in contact; the depth-first design ensures that all boxes in a lower level have moved before a box in the upper level does, so only the first of potentially several paths that reach a given box will actually cause a move. That's the role of `Box._touches()`. Also, the order of movement now is relevant, as opposed to the situation in Part 1: we need the boxes further down the tree to move before, so that when a second box tries to move them again, they are no longer in contact with it, and that push is lost as expected.
 
 
 
 ## Day 16
 
+This is all about the representation. With the right choice, finding the solutions is largely trivial (using preexisting algorithms).
+
+We will represent this as a (directed) graph. But instead of one node for each position, we will use four, one for each heading. Nodes for each heading only communicate with their neighbour node in that direction (if it's not a wall) with a cost of one step of movement, and with some of the other headings for the same position with a cost of one turn; to be precise, each heading communicates with the other two that can be reached by a 90-degree turn.
+
+We also keep track of thek start and end nodes. For the start we have a heading, so it maps directly to one of our nodes. For the end, the heading is not relevant. We will just remove the cost for turning at the end node and arbitrarily select one heading for the target, it makes no difference which. Alternatively we could add a final node (no heading associated to it), and link the four nodes corresponding to the end position at no cost.
+
 ### Part 1
 
-
+Trivial call to `shortest_path_length`, once the graph is built.
 
 ### Part 2
 
+The second part just requires enumerating all the shortest paths (we have a standard algorithm for that), and checking the size of their union.
 
 
 
 ## Day 17
 
+We need a computer following the given specifications. It's not difficult, and there are not *tricks* to implementing it; we will handle combo arguments with a method to take care of the calculations, and some repetitive operations (e.g. the several division operators that only differ in the target register) are generalized. Also, the operations have been implemented mostly as bitwise operations and shifts for efficiency: dividing by `2^n` is equivalent to shifting right `n` bits, modulo 8 is equivalent to an `and` with the mask `b111`, which is 7 in decimal.
+
+A few other practical choices:
+
+*   Since the opcodes are given numerically, we keep the operations in a list and access it by index, which makes calling an operation the quite readable `self.ops[opcode]`.
+*   Each operation immediately increments the instruction pointer; since the adjustments done by `jnz` are absolute, there is no impact there, and we can avoid needing to update it in every operation, which is a recipe for an infinite loop (just need to forget it in one operation, and we're stuck there).
+*   To make everything as general as possible, `out` is just another operator, which does nothing, but returns the output value; other operators perform their operation, but do not return anything. The computer outputs any operation result, which corresponds to the `out` operations, but can easily change in the future.
+*   Since we will need to look into the inner workings, we will have a debug flag to print every operation with its argument and every output operation.
+
 ### Part 1
 
-
+Let's just use the `Computer` to run the code and collect the output.
 
 ### Part 2
 
+Let's find a quine for this machine!
+
+First, we will need to understand what the program is doing; brute force will not cut it here. We will build a reverse engineering system that transforms the code into something more interpretable, like `pseudocode`. We just do one pass over the code and provide a more human-friendly version of the operation and argument. The argument takes the form `literal | combo`, and the description of the operation indicates which to use:
+
+```
+bst: b <- combo & 7   --   4 | a
+bxl: b <- b xor arg   --   3 | 3
+cdv: c <- a >> combo   --   5 | b
+adv: a <- a >> combo   --   3 | 3
+bxc: b <- b xor c   --   1 | 1
+bxl: b <- b xor arg   --   5 | b
+out: output combo   --   5 | b
+jnz: if a == 0 nop else ip <- arg   --   0 | 0
+```
+
+We can see it's a single loop that we can rewrite (moving the shifting of `a` for clarity) as:
+
+```python3
+while a:  # until all bits have been used up
+    b = a & 7  # b <- the last 3 bits of a
+    b ^= 3
+    c = a >> b
+    b ^= c
+    b ^= 5
+    # output the value of (b & 7) now
+    a >>= 3  # shift a 3 bits to the right ==> discard the three bits used for b
+```
+
+In other words, take the last 3 bits of `a`, do some operations with them, return the result, discard thos bits; repeat until all of `a` is used up. There is a little additional complexity in that one of the operations involves using `a` (shifted by `b` to the right), so the higher bits are relevant, which means that we can't just solve each 3-bit piece independently.
+
+But now we have a clear target: we want to find the value of `a` that when applying this procedure returns the code in order, so we know what the value of (the last 3 bits of) `b` should be at the end of each iteration, and how many iterations we need. We can build `a` from the least significant bits up, or from the most significant bits down. Since the higher bits are needed to do the calculations in each iteration of the loop (but not the lower ones), we will chose the latter; otherwise we will be setting constraints on the higher bits that are a bit of a nightmare to keep track of.
+
+We will need to do a recursive search; the need to use the higher bits of `a` means that there may be some values that match at one stage, but result invalid later on as we add more bits. We will keep track of the position in the output, to know our target for `b` at each step, but also to ensure that the first three bits are not all zero, as that would cause an early termination and the last value (at least) would not be generated.
+
+At each step, we shift `a` 3 bits to the left, try out all the values from 0 to 7 (skipping 0 for the highest 3 bits) to see if any generate the desired output. Those who don't are dead ends in the tree search, those who do get to search deeper. If we reach the last value to generate and succesfully generate it (that's at index 0, so if we enter a call with index -1), we have our result.
+
+Just to be extra sure, we rerun the code in a `Computer` with `a` initially set to this value and check that we indeed get back the code as output.
 
 
 
 ## Day 18
 
+Another easy one when cast into a graph. In this case we just generate a graph with nodes at each position and communicated with their horizontal and vertical neighbours, using the usual 'only look at nodes already passed in the loop' trick.
+
 ### Part 1
 
-
+For the given number of time steps, get the coordinates of the *falling byte*, and remove it from the graph, together with the edges that connected to it. With the resulting graph, calculate the shortest path length from start to end.
 
 ### Part 2
 
+This time let's go step by step, and after every removal just check if there exists a path from start to end. We are using a pre-existing algorithm, but it would be as easy as building the connected component of the start, breaking early (returning `True`) if the end node is reached at any point, or returning `False` if the component is done without it.
+
+We just look at the coordinates of the last step, which caused the block, and return that.
 
 
 
 ## Day 19
 
+We go back to recursive search. In this case, generating longer patterns (targets) from smaller building blocks (patterns). We will create a `PatternMatcher` class to do the heavy lifitng. We will discuss here the data structures, and leave the methods that do the search for each part.
+
+We will build a kind of prefix tree, by keeping the available patterns in a dictionary with pattern length as key and the set of patterns of that length as value. This will make it easy to iterate through paterns up to a specific lenght (useful for the last additions) and to handle the adjustment of the target for the recursion. As we add patterns, we will keep track of the maximum length of the patterns, for looping.
+
 ### Part 1
 
+Can we build a given target? It's the classic look for all paterns that match the begining of the target, recurse to check if what remains of the target can be built. When the target becomes the empty string, the answer is yes; if at some point we have no match, the answer is no.
 
+The `match` method finds all matching patterns by taking the start of the target for length 1, 2, ... until either the maximum pattern length or the target length (whichever is lesser), and checking if that sequence is in the available patterns of the corresponding length, and if so yielding it.
+
+Checking if a target is possible is just a matter of recursing this matching procedure. Expecting the usual, we will build directly a cached version. We always call `can_build`, wihch in turn calls `_can_build` in case of a cache miss to actually do the calculation. `_can_build` recurses into `can_build` to take advantage of the cache. It appears that there is no base case for this recursion, but it is actually integarted by initializing the cache with the answer to the base case when the target is the empty string.
 
 ### Part 2
 
+This is a little different: we need to find all possible ways, instead of just one. The logic behind it is exactly the same, only we don't immediately stop as soon as one way is found, and we don't return just `True` or `False`, but the count of feasible solutions, which is the sum of the ways in which the rest of the target can be build after removing each matching pattern in this step.
+
+As before, we memoize this function, and initialize the cache with the result for the base case of the recursion: there is 1 way to build the empty string.
 
 
 
