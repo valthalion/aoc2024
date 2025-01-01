@@ -126,13 +126,16 @@ def part_1():
 
 
 def part_2():
+    # Uncomment this line to print the pseudocode
+    # pseudocode()
+
     registers, code = read_data()
 
     a_value = find_a_value(code)
     if a_value is None:
         return
 
-    # Comment the three lines above to run this and get the pseudocode of the program
+    # Check the result
     registers['a'] = a_value
     computer = Computer(registers)
     output = list(computer.run(code))
