@@ -612,65 +612,112 @@ As before, we memoize this function, and initialize the cache with the result fo
 
 ## Day 20
 
+This one looks very much like some others where we turned to graphs, but it is not really a good fit in this case: there is a single path, and the kind of questions don't really match graph theory algorithms.
+
+So we will record the start and end positions, the one existing path, and the distances from each position in the path to the end. Once we have all the nodes, it's easy to build the path: from the start, take the only feasible neighbour; move there, and get the only feasible neighbour (that isn't visited yet, no turning back). We can just follow this procedure and represent the path as a dictionary of predecessor--succesor pairs. For the distances, also a dictionary, we just build a stack going through the path, and then count from the end (distance zero), adding one for each step back by popping the stack.
+
 ### Part 1
 
-
+In the end, the question boils down to: in how many ways can you gain more than 100 steps by crrossing a wall? We can easily calculate all the cheats for each step in the path, by looking at all the positions at a distance of two steps (a single step cannot cross a wall, so it will only take you at best to the next step in the path, with no actual gain), and calculate the gain for those that are in the path; this is just the distance to the end from the position where we start the cheat (what it would take following the original path) minus the distance to the end from the new point in the path where we rejoin it plus 2, to count the time of the cheat (the new distance from the point where the cheat starts).
 
 ### Part 2
 
+Now cheats can be longer, but the reasoning is exactly the same, only instead of distance 2, it's up to distance 20. Since we need to add the cheat distance when determining the time saved, we actually need to do it for distances 2, 3, ..., 20. As soon as there are a few steps, enumerating all possible paths explodes, but we don't need to do it, because a cheat is defined by the start and end points, so only that is needed. Basically, we need to iterate over the distance, find the boundary of the (norm-1) ball for that distance, and check which of those rejoin the path, and give positive savings---specifically over the limit set for counting.
+
+In reality, we will take a couple of shortcuts. Instead of building each ball boundary, we will generate the whole 20-radius ball at once, which is simpler to do, and for each position that matches the path we can calculate the length of the cheat as the distance between the cheat's start and end (since a cheat is defined by those two points, we assume that the (one of the) fastest route(s) between them is taken). This is what the `deltas` function does; it could be run just one and stored into a list or tuple for reuse each time, if we want to optimize it further. We avoid the positions at distances 0 and 1, as they can't provide an advantage in any case.
 
 
 
 ## Day 21
 
+This is inception with robots. It can be hard to keep track of which level you're at when deciding what the next move is.
+
+We will represent the keypads by the (complex) position of the buttons. In wither case, we will set the 'A' button at position 0, which has the nice perk of making -2 the gap in the keyboard that has to be avoided.
+
+When building a sequence of moves, we will move horizontally first if going left, and vertically first if going right; if doing this would take us to the gap, we invert it. My first though was to always use the inversion, which guarantees never passing over the gap, but it results in longer sequences. I didn't think it fully through, since I saw the heuristic in Reddit, and it solved the problem (the test was working with the other option!).
+
 ### Part 1
 
+It's easy to translate the sequence of buttons into a sequence of moves. The numerical keyboard only appears at first, so it's the source of the first translation, but others are always directional keyboards, so the logic is always the same (i.e. the target of the translation is the directional keyboard); and the complex representation of the keyboards makes the translation work the same in both cases.
 
+In this first part, it's straightforward to just do the translations sequentially and build the sequence explicitly. It's always important to keep track of the previous button, as the movements to reach the new target are different depending on where we were before. But in the end it's a matter of iterating over the sequence, applying `translate` to each move (source and destination keys, starting from 'A' before the first button) to get the next level sequence; then process that sequence again (and a third time).
 
 ### Part 2
 
+We could, in theory, repeat the same process as in Part 1, only 26 times; but that grows too large and too computationally intensive. So we need to think more carefully.
+
+The main insight here is that, because everytime we need to push 'A' to validate, every move is independent of the rest of the sequence. And with so few buttons, only a limited number of moves exist: 20. There are also a limited number of keyboard depths, so to speak. We can memoize based on the move and the number of keyboard indirections to be made; it's a complex web of recursion, but it works out.
+
+So we `process` each code as a sequence, calculating the lenght of each move defined by the sequence and the number of indirection steps; this is `calculate_len`, the cached result, and it recursively calls `process` to get the legth of the next level of indirection for the `translate`d move. Since we already have a `cached` decorator and the requests to `translate` a given move will repeat often (there are only a handful of movements after all), we can also memoize it.
 
 
 
 ## Day 22
 
+Let's build a PRNG.
+
 ### Part 1
 
-
+This part is straightforward: just a loop, where each step applies the operations that are indicated. We can make them a little more effective observing that all the multiplying and dividing is by powers of two, so we can just shift accordingly. We could go one step further if we wanted further optimization, notice that 16,777,216 is $2^24$, so the modulo operation can be substituted by and-ing with 16,777,215.
 
 ### Part 2
 
+To find the best sequence efficiently, we can first evaluate what sequences actually appear in the price streams, and what is the value they provide. For each monkey, we can go through the stream, recording the sequence of the last four diferences, and at each step recoding the sequnce and the number of bananas it yields; if the sequence is already recorded, we just ignore it, as selecting that sequence means that this point in the stream is not reached (it would have stopped at the first accurrence).
 
+We can then merge the results from all the streams: add together the results for each sequence.
+
+Finally, we select the sequence with the most bananas.
+
+This approach just goes once through each stream, once through each seqeunce-to-bananas dictionary to do the merge, and once more through the merged dictionary to get the maximum. Going brute-force, would mean instead going though all possible 4-sequences (roughly, 160,000), and for each going through each stream to find the yield in bananas, possibly until the end if the sequence does not occur.
 
 
 ## Day 23
 
+This is begging for a graph representation: the input is exactly the list of edges.
+
 ### Part 1
 
+The question can be simplified to: find all cliques of size 3 in the graph. We will do it manually, just for fun. And since it's just for fun, and fast enough, we won't try to optimize: we'll keep track of the cliques we find in a set, and let that deal with duplicates that will appear.
 
+We just look at each node. We get its neighbours, and for each neighbour we get *its* neighbours, let's call these the second-order neighbours. For each neighbour, we get a 3-clique for each second-order neighbour which is also a first-order neighbour. We build the corresponding clique as a `frozenset` so we can add it to our clique set. We could also use tuples, but that would require normalizing the order of the nodes in the clique (e.g. sorted alphabetically).
+
+For the final answer, we only need to count, filtering by the condition of containing a node starting with 't'.
 
 ### Part 2
 
+We could build on the previous step to grow the largest clique, but that would soon become too slow without properly adjusting the algorithm. Instead, we take advantage of the functionality of `networkx` and just `enumerate_all_cliques`; we discard all by the last, which is the largest, and the one we are interested in. Sort and join.
 
 
 
 ## Day 24
 
+We know from the beginning that it's going to be a circuit built with logic gates, so we will design sround that. First we get the values input into the wires, and store that as a dictionary. The gates we will also gather into a dictionary with the output (which will also identify the gate) as the key, and a tuple (operation, input1, input2) as the value.
+
 ### Part 1
 
+We need to simualte the logic see the values of the nodes starting with 'z'. We can evaluate a wire recursively: if we know the value (in the values dictionary), that's it; if not, get the values of the inputs to the gate, perform the operation, and store the result in values. This will populate all the values needed to calculate the requested nodes.
 
+We use a shift-then-or loop to build the resulting number from the gate values.
 
 ### Part 2
 
+We will resot once more to a visual approach in this case. We can build a graphviz diagram representing the circuit. The `flowchart` function generates the code for that. We can see the result in <puzzle24.out>, which is too large to usefully inline.
 
+A quick review of the chart shows a repeating structure that adds each binary digit and propagates the carryover. A more in-depth analysis finds the blocks where the structure is not the right one. For some it's quite obvious, as the 'wires' change shape because of the misconnection; in other cases is more subtle, as it's only the labelling of the outputs (e.g. the carryover is fed to the output 'zxx' and the output is propagated to the next block as if it were the carryover).
+
+With the offending wires identified in this way, the solution is hardcoded.
 
 
 ## Day 25
 
+We will make it easy to check if a key fits in a lock. For locks, we will enconde the size of each gap, while for the keys we will encode the size of the tooth. Then each will be represented by a 5-tuple, not unlike the representation used in the description of the puzzle, but with the nice property that a `key` fits in a `lock` if `all(k <= l for k, l in zip(key, lock))`.
+
+To build the representation, we use a list of lists, that will work as a matrix; for each line, we append 1 or 0, depending on the character and what we are counting (different for keys and locks). This builds the matrix-like representation as it is drawn, with each tooth or gap as a column, so we transpose the matrix (that's the effect of `zip(*matrix)`) and add along the rows.
+
 ### Part 1
 
-
+No fancy algorithm today: loop over the combinations of keys and locks, and count how many fit.
 
 ### Part 2
 
-
+As usual, Part 2 is a XMAS gift!
