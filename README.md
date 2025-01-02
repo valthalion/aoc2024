@@ -658,7 +658,7 @@ Let's build a PRNG.
 
 ### Part 1
 
-This part is straightforward: just a loop, where each step applies the operations that are indicated. We can make them a little more effective observing that all the multiplying and dividing is by powers of two, so we can just shift accordingly. We could go one step further if we wanted further optimization, notice that 16,777,216 is $2^24$, so the modulo operation can be substituted by and-ing with 16,777,215.
+This part is straightforward: just a loop, where each step applies the operations that are indicated. We can make them a little more effective observing that all the multiplying and dividing is by powers of two, so we can just shift accordingly. We could go one step further if we wanted further optimization, notice that 16,777,216 is $2^{24}$, so the modulo operation can be substituted by and-ing with 16,777,215.
 
 ### Part 2
 
@@ -701,7 +701,7 @@ We use a shift-then-or loop to build the resulting number from the gate values.
 
 ### Part 2
 
-We will resot once more to a visual approach in this case. We can build a graphviz diagram representing the circuit. The `flowchart` function generates the code for that. We can see the result in <puzzle24.out>, which is too large to usefully inline.
+We will resot once more to a visual approach in this case. We can build a graphviz diagram representing the circuit. The `flowchart` function generates the code for that. We can see the result in this [image](puzzle24.out), which is too large to usefully inline.
 
 A quick review of the chart shows a repeating structure that adds each binary digit and propagates the carryover. A more in-depth analysis finds the blocks where the structure is not the right one. For some it's quite obvious, as the 'wires' change shape because of the misconnection; in other cases is more subtle, as it's only the labelling of the outputs (e.g. the carryover is fed to the output 'zxx' and the output is propagated to the next block as if it were the carryover).
 
